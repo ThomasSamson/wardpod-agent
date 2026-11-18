@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Runners hébergés par GitHub uniquement : ce dépôt est public, une pull
+# request ne doit jamais exécuter de code sur une machine du projet. Les
+# actions sont épinglées par SHA de commit.
+jobs:
+  go:
+    name: go (${{ matrix.name }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: lint et vulnérabilités
+            targets: lint vuln
+          - name: tests unitaires
+            targets: test-unit
+          - name: intégration et chart
+            targets: test-integration chart-lint chart-test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@7a4e45a543138629540c9a1616d08632b893e492 # v5.0.1
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: go-${{ runner.os }}-${{ matrix.targets }}-${{ hashFiles('go.sum', 'mise.toml') }}
+          restore-keys: go-${{ runner.os }}-${{ matrix.targets }}-
+      - name: ${{ matrix.name }}
+        env:
+          TARGETS: ${{ matrix.targets }}
+        run: make $TARGETS
+
+  image:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Image de l'agent (sans publication)
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          target: agent
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: wardpod-agent-ci:${{ github.sha }}
+          build-args: |
+            VERSION=${{ github.sha }}
+            COMMIT=${{ github.sha }}
+      # Vulnérabilités de l'image, par le trivy qu'elle embarque : bloquant
+      # pour tout ce qui se corrige ici ; signalé seulement pour le binaire
+      # trivy, que corrige son éditeur (monter v dans le Dockerfile).
+      - name: Vulnérabilités et licences de l'image
+        env:
+          IMAGE: wardpod-agent-ci:${{ github.sha }}
+        run: |
+          set -eu
+          docker save "$IMAGE" -o "$RUNNER_TEMP/agent.tar"
+          chmod 644 "$RUNNER_TEMP/agent.tar"
+          scan() {
+            docker run --rm --entrypoint /usr/local/bin/trivy -v "$RUNNER_TEMP/agent.tar:/agent.tar:ro" \
+              -e TRIVY_CACHE_DIR=/tmp/trivy "$IMAGE" "$@" --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed --quiet
+          }
+          scan image --input /agent.tar --skip-files usr/local/bin/trivy --exit-code 1
+          scan image --input /agent.tar --exit-code 0
+          id=$(docker create "$IMAGE")
+          docker cp "$id:/usr/share/licenses/wardpod/THIRD_PARTY_LICENSES" - | tar -xO | grep -q 'k8s.io/client-go'
+          docker cp "$id:/usr/share/licenses/wardpod/LICENSE" - | tar -xO | grep -q 'Apache License'
+          docker cp "$id:/usr/share/licenses/trivy/LICENSE" - | tar -xO | grep -q 'Apache License'
+          docker rm "$id" >/dev/null
+          docker run --rm "$IMAGE" version

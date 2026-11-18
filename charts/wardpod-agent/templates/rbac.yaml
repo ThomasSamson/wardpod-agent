@@ -1,0 +1,65 @@
+{{- if .Values.rbac.create }}
+# Lecture seule : aucun droit d'écriture, aucun accès aux Secrets.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "psa.clusterName" . }}
+  labels:
+    {{- include "psa.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: [pods, services, replicationcontrollers]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [replicasets, daemonsets, statefulsets]
+    verbs: [get, list, watch]
+  - apiGroups: [batch]
+    resources: [jobs, cronjobs]
+    verbs: [get, list, watch]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses]
+    verbs: [get, list, watch]
+  {{- if and (ne .Values.collect.source "builtin") .Values.scanner.serverMatch }}
+  # SbomReport du Trivy Operator (sources auto et operator) : le serveur y
+  # cherche les vulnérabilités, les VulnerabilityReport ne servent pas.
+  - apiGroups: [aquasecurity.github.io]
+    resources: [sbomreports]
+    verbs: [get, list, watch]
+  {{- else if ne .Values.collect.source "builtin" }}
+  # Rapports du Trivy Operator (sources auto et operator).
+  - apiGroups: [aquasecurity.github.io]
+    resources: [vulnerabilityreports]
+    verbs: [get, list, watch]
+  {{- if .Values.collect.inventory }}
+  # SBOM des images (inventaire logiciel), lus un par un à la demande.
+  - apiGroups: [aquasecurity.github.io]
+    resources: [sbomreports]
+    verbs: [get]
+  {{- end }}
+  {{- end }}
+  - apiGroups: [gateway.networking.k8s.io]
+    resources: [gateways, httproutes, grpcroutes, tlsroutes, tcproutes, udproutes]
+    verbs: [get, list, watch]
+  - apiGroups: [traefik.io, traefik.containo.us]
+    resources: [ingressroutes, ingressroutetcps, ingressrouteudps]
+    verbs: [get, list, watch]
+  # Vérification de ses propres droits au démarrage.
+  - apiGroups: [authorization.k8s.io]
+    resources: [selfsubjectaccessreviews]
+    verbs: [create]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "psa.clusterName" . }}
+  labels:
+    {{- include "psa.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "psa.clusterName" . }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "psa.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

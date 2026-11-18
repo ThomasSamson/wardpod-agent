@@ -1,0 +1,19 @@
+apiVersion: v2
+name: wardpod-agent
+description: Agent Wardpod d'un cluster Kubernetes. Collecte en lecture seule les vulnérabilités (Trivy Operator ou scanner intégré), l'exposition et l'inventaire des images, et les envoie au service Wardpod.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.29.0-0"
+home: https://github.com/ThomasSamson/wardpod-agent
+sources:
+  - https://github.com/ThomasSamson/wardpod-agent
+keywords:
+  - trivy
+  - vulnerabilities
+  - sbom
+  - security
+annotations:
+  artifacthub.io/license: Apache-2.0
+  artifacthub.io/signKey: |
+    url: https://raw.githubusercontent.com/ThomasSamson/wardpod-agent/main/cosign.pub

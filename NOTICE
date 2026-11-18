@@ -1,0 +1,7 @@
+Agent Wardpod
+Copyright 2026 Thomas Samson
+
+Ce produit est distribué sous la licence Apache 2.0 (fichier LICENSE). Les
+images de l'agent embarquent trivy (Aqua Security, Apache 2.0) et des
+dépendances dont les licences sont dans
+/usr/share/licenses/wardpod/THIRD_PARTY_LICENSES.

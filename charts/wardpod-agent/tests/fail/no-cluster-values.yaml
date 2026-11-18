@@ -1,0 +1,2 @@
+# erreur : cluster.name est obligatoire
+agent: {serverURL: "https://wardpod.example.org", existingSecret: jeton}

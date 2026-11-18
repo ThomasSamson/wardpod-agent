@@ -1,0 +1,11 @@
+# Agent avec le Trivy Operator, jeton dans un Secret existant.
+cluster:
+  name: edge-1
+  environment: staging
+agent:
+  serverURL: https://wardpod.example.org
+  existingSecret: wardpod-agent
+collect:
+  source: operator
+  internalGateways: [infra/passerelle-privee]
+  internalGatewayClasses: [interne]

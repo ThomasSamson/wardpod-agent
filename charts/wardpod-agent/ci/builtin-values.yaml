@@ -1,0 +1,16 @@
+# Agent sans Trivy Operator : scanner intégré, cache persistant,
+# identifiants de registres privés depuis un Secret existant.
+cluster:
+  name: edge-2
+agent:
+  serverURL: https://wardpod.example.org
+  existingSecret: wardpod-agent
+collect:
+  source: builtin
+scanner:
+  registryAuth:
+    existingSecret: registres-prives
+  cache:
+    persistence:
+      enabled: true
+      size: 10Gi

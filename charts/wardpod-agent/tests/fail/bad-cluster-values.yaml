@@ -1,0 +1,3 @@
+# erreur : cluster.name "Prod_1" invalide
+cluster: {name: Prod_1}
+agent: {serverURL: "https://wardpod.example.org", existingSecret: jeton}

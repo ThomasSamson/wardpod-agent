@@ -1,0 +1,88 @@
+suite: agent
+release:
+  name: wardpod
+  namespace: kube-system
+set:
+  cluster.name: edge-1
+  agent.serverURL: https://wardpod.example.org
+  agent.existingSecret: jeton
+tests:
+  - it: profil restricted, un seul réplica, Recreate
+    template: templates/deployment.yaml
+    asserts:
+      - equal: {path: 'spec.replicas', value: 1}
+      - equal: {path: 'spec.strategy.type', value: Recreate}
+      - equal: {path: 'spec.template.spec.securityContext.runAsNonRoot', value: true}
+      - equal: {path: 'spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem', value: true}
+      - equal: {path: 'spec.template.spec.containers[0].securityContext.capabilities.drop', value: [ALL]}
+
+  - it: image avec le scanner intégré par défaut, variante slim avec l'opérateur
+    template: templates/deployment.yaml
+    asserts:
+      - equal: {path: 'spec.template.spec.containers[0].image', value: 'docker.io/thomassamson33/wardpod-agent:0.1.0'}
+
+  - it: variante slim avec la source operator
+    template: templates/deployment.yaml
+    set:
+      collect.source: operator
+    asserts:
+      - equal: {path: 'spec.template.spec.containers[0].image', value: 'docker.io/thomassamson33/wardpod-agent:0.1.0-slim'}
+
+  - it: le digest l'emporte sur le tag
+    template: templates/deployment.yaml
+    set:
+      image.digest: sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    asserts:
+      - equal: {path: 'spec.template.spec.containers[0].image', value: 'docker.io/thomassamson33/wardpod-agent@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'}
+
+  - it: jeton lu dans le Secret existant
+    template: templates/deployment.yaml
+    asserts:
+      - contains:
+          path: 'spec.template.spec.containers[0].env'
+          content: {name: WP_AGENT_TOKEN, valueFrom: {secretKeyRef: {name: jeton, key: token}}}
+
+  - it: aucun Secret géré sans jeton en clair
+    template: templates/secret.yaml
+    asserts:
+      - hasDocuments: {count: 0}
+
+  - it: aucun droit sur les Secrets, ni d'écriture
+    template: templates/rbac.yaml
+    documentIndex: 0
+    asserts:
+      - notContains: {path: rules, content: {apiGroups: [""], resources: [secrets], verbs: [get, list, watch]}}
+      - equal: {path: 'metadata.name', value: wardpod-kube-system}
+
+  - it: pas de VulnerabilityReport avec le scanner intégré
+    template: templates/rbac.yaml
+    documentIndex: 0
+    set:
+      collect.source: builtin
+    asserts:
+      - notContains:
+          path: rules
+          content: {apiGroups: [aquasecurity.github.io], resources: [vulnerabilityreports], verbs: [get, list, watch]}
+
+  - it: aucun secret dans la ConfigMap
+    template: templates/configmap.yaml
+    set:
+      agent.existingSecret: ""
+      agent.token: jeton-factice-123456
+    asserts:
+      - notExists: {path: 'data.WP_AGENT_TOKEN'}
+      - equal: {path: 'data.WP_AGENT_SERVER_URL', value: https://wardpod.example.org}
+
+  - it: recherche par le serveur avec l'opérateur, SbomReport seuls
+    template: templates/rbac.yaml
+    set:
+      collect.source: operator
+      scanner.serverMatch: true
+    documentIndex: 0
+    asserts:
+      - contains:
+          path: rules
+          content: {apiGroups: [aquasecurity.github.io], resources: [sbomreports], verbs: [get, list, watch]}
+      - notContains:
+          path: rules
+          content: {apiGroups: [aquasecurity.github.io], resources: [vulnerabilityreports], verbs: [get, list, watch]}

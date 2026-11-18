@@ -1,0 +1,18 @@
+{{- if and .Values.scanner.cache.persistence.enabled (not .Values.scanner.cache.persistence.existingClaim) }}
+# Cache du scanner intégré : base de vulnérabilités et SBOM, conservés
+# d'un redémarrage à l'autre.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "psa.claimName" . }}
+  labels:
+    {{- include "psa.labels" . | nindent 4 }}
+spec:
+  accessModes: [ReadWriteOnce]
+  {{- with .Values.scanner.cache.persistence.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.scanner.cache.persistence.size }}
+{{- end }}

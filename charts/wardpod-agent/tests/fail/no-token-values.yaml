@@ -1,0 +1,3 @@
+# erreur : fournir le jeton du cluster
+cluster: {name: edge-1}
+agent: {serverURL: "https://wardpod.example.org"}

@@ -1,0 +1,22 @@
+{{- if .Values.networkPolicy.enabled }}
+# L'agent n'accepte que son port de sondes et de métriques. Ses sorties
+# (API Kubernetes, service Wardpod, registres) ne sont pas restreintes.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "psa.fullname" . }}-agent
+  labels:
+    {{- include "psa.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "psa.selectorLabels" . | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - ports:
+        - port: probes
+      {{- with .Values.networkPolicy.metricsFrom }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

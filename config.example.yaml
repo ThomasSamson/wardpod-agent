@@ -1,0 +1,133 @@
+# Configuration de l'agent Wardpod, valeurs par défaut. Chaque clé est
+# aussi une variable WP_* (collect.syncTimeout → WP_COLLECT_SYNC_TIMEOUT) et
+# un flag (-collect.syncTimeout). Le fichier est facultatif (WP_CONFIG).
+log:
+  # debug, info, warn ou error.
+  level: info
+  # json (par défaut, pour l'agrégation des logs) ou text.
+  format: json
+
+# Délai maximal d'arrêt propre après SIGTERM. Le chart règle
+# terminationGracePeriodSeconds au-delà.
+shutdownTimeout: 25s
+
+# Collecte dans un cluster.
+collect:
+  # Nom du cluster, obligatoire pour collecter.
+  cluster: ""
+  # Environnement du cluster (production, staging…), pris en compte par la
+  # console pour prioriser ; celui fixé dans la console l'emporte.
+  environment: ""
+  # Contexte du kubeconfig, hors du cluster uniquement. Vide : configuration
+  # in-cluster, ou contexte courant du kubeconfig.
+  kubeContext: ""
+  # Envoi périodique d'un snapshot complet, même sans changement.
+  interval: 10m
+  # Calme à attendre après un changement de rapport avant d'envoyer, borné
+  # par interval : le Trivy Operator écrit ses rapports par rafales.
+  debounce: 30s
+  # Délai maximal de synchronisation des caches Kubernetes. Au-delà, l'agent
+  # s'arrête en erreur plutôt que d'attendre indéfiniment.
+  syncTimeout: 2m
+  # Délai maximal de chaque requête à l'API Kubernetes (hors watch).
+  apiTimeout: 30s
+  # Premier délai avant un nouvel essai après un envoi en échec ; il double
+  # à chaque échec, sans dépasser interval. Le Retry-After du serveur
+  # (serveur saturé) est respecté.
+  retryInterval: 15s
+  # Source des vulnérabilités : auto (le Trivy Operator s'il est installé
+  # et lisible, sinon le scanner intégré), operator ou builtin.
+  source: auto
+  # Réévaluation de la source en mode auto : installer ou retirer
+  # l'opérateur bascule sans redémarrage.
+  sourceCheckInterval: 5m0s
+  # Exposition : un point d'entrée est supposé joignable depuis internet,
+  # sauf s'il est reconnu interne. Le workload est alors exposé au cluster.
+  # Annotations (clé=valeur, valeur sans casse) d'un load balancer interne,
+  # lues sur les Services LoadBalancer et dans spec.infrastructure.annotations
+  # des Gateways. Un load balancer interne ouvre aussi des ports de nœud :
+  # on les suppose filtrés par le pare-feu du fournisseur.
+  internalLoadBalancerAnnotations:
+    - service.beta.kubernetes.io/aws-load-balancer-internal=true
+    - service.beta.kubernetes.io/aws-load-balancer-scheme=internal
+    - networking.gke.io/load-balancer-type=Internal
+    - cloud.google.com/load-balancer-type=Internal
+    - service.beta.kubernetes.io/azure-load-balancer-internal=true
+    - service.beta.kubernetes.io/openstack-internal-load-balancer=true
+    - service.beta.kubernetes.io/scw-loadbalancer-private=true
+    - lb.stackit.cloud/internal-lb=true
+  # Gateways (namespace/nom) et classes de Gateway joignables du seul réseau
+  # privé. Une route Gateway API n'est interne que si toutes ses Gateways
+  # parentes le sont ; une route rattachée à un Service (maillage) l'est
+  # toujours.
+  internalGateways: []
+  internalGatewayClasses: []
+  # Inventaire logiciel : l'agent déclare l'empreinte du SBOM de chaque
+  # image en service (SbomReport du Trivy Operator, ou SBOM du scanner
+  # intégré) et transmet ses composants quand le serveur ne les a pas.
+  inventory: true
+  # SBOM complets transmis au plus par lot (POST /api/v1/sboms) ; les lots
+  # partent à la suite, juste après le snapshot qui les a fait demander.
+  sbomBatch: 20
+
+# Scanner intégré (source builtin) : pilote le binaire trivy, embarqué dans
+# l'image. Chaque image est analysée une fois par digest ; son SBOM est
+# gardé en cache et réévalué à chaque mise à jour de la base.
+scanner:
+  trivyPath: trivy
+  # Cache jetable : base de vulnérabilités (environ 1,5 Go) et SBOM. Un
+  # volume persistant évite de les retélécharger à chaque redémarrage.
+  cacheDir: /var/cache/wardpod
+  # Miroirs des bases de Trivy (environnements isolés) ; vides, ceux de
+  # Trivy.
+  dbRepository: []
+  javaDBRepository: []
+  # Mise à jour de la base, puis réévaluation des SBOM connus.
+  dbUpdateInterval: 12h0m0s
+  # Analyses d'images simultanées.
+  concurrency: 2
+  # Délai maximal d'analyse d'une image ; taille maximale (format Trivy :
+  # 2GB, 500MB ; vide, sans limite).
+  timeout: 10m0s
+  maxImageSize: ""
+  # Nouvel essai d'une image en échec, délai doublé à chaque échec.
+  retryInterval: 1h0m0s
+  maxRetryInterval: 24h0m0s
+  # Identifiants des registres privés, au format dockerconfigjson, chargés
+  # depuis un Secret (WP_SCANNER_REGISTRY_AUTH, ou _FILE). Secret.
+  registryAuth: ""
+  # Images jamais analysées (motifs sur la référence, par exemple
+  # "registry.internal/sandbox/*").
+  exclude: []
+  # Durée de conservation du SBOM d'une image qui ne tourne plus.
+  sbomRetention: 168h0m0s
+  # Variables de la configuration de l'image qui donnent la version d'un
+  # runtime compilé dans l'image, invisible de trivy : ajouté au SBOM
+  # (pkg:generic/<runtime>@<version>, type runtime).
+  runtimeEnv:
+    ASPNETCORE_VERSION: aspnetcore
+    DOTNET_VERSION: dotnet
+    GOLANG_VERSION: go
+    JAVA_VERSION: java
+    NODE_VERSION: node
+    PERL_VERSION: perl
+    PHP_VERSION: php
+    PYTHON_VERSION: python
+    RUBY_VERSION: ruby
+  # L'agent ne fait que les SBOM, sans base de vulnérabilités : il les envoie
+  # complets, la console y cherche les vulnérabilités (si elle le propose).
+  serverMatch: false
+
+# Envoi des snapshots au serveur central (sous-commande agent).
+agent:
+  # URL du serveur, en https:// (http:// accepté sur la boucle locale),
+  # sans identifiants : l'authentification passe par le jeton.
+  serverURL: ""
+  # Jeton du cluster, créé côté serveur. Secret.
+  token: ""
+  # Autorise http:// hors de la boucle locale : le jeton circule en clair.
+  allowInsecure: false
+  # Délai maximal d'un envoi.
+  httpTimeout: 1m0s
+  # Adresse des sondes /healthz et /readyz.
+  listen: :8081

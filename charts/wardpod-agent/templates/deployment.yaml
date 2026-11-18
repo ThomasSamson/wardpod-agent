@@ -1,0 +1,105 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "psa.fullname" . }}-agent
+  labels:
+    {{- include "psa.labels" . | nindent 4 }}
+spec:
+  # Un seul agent par cluster ; Recreate évite deux envois concurrents
+  # pendant une mise à jour.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "psa.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "psa.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "psa.serviceAccountName" . }}
+      automountServiceAccountToken: true
+      terminationGracePeriodSeconds: {{ add .Values.shutdownTimeoutSeconds 5 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: agent
+          image: {{ include "psa.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: [agent]
+          envFrom:
+            - configMapRef:
+                name: {{ include "psa.fullname" . }}
+          env:
+            - name: WP_AGENT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "psa.secretName" . }}
+                  key: {{ ternary .Values.agent.existingSecretKey "token" (ne .Values.agent.existingSecret "") }}
+            {{- with .Values.scanner.registryAuth.existingSecret }}
+            - name: WP_SCANNER_REGISTRY_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: {{ $.Values.scanner.registryAuth.existingSecretKey }}
+            {{- end }}
+          ports:
+            - name: probes
+              containerPort: {{ .Values.agent.probePort }}
+          startupProbe:
+            httpGet: {path: /readyz, port: probes}
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: {path: /readyz, port: probes}
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: {path: /healthz, port: probes}
+            periodSeconds: 30
+            failureThreshold: 3
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.agent.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: scanner-cache
+              mountPath: /var/cache/wardpod
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: scanner-cache
+          {{- if .Values.scanner.cache.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "psa.claimName" . }}
+          {{- else }}
+          emptyDir:
+            sizeLimit: {{ .Values.scanner.cache.sizeLimit }}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,143 @@
+# Agent Wardpod : collecte ce cluster en lecture seule et envoie ses
+# snapshots au service Wardpod. Le plus simple reste la commande
+# `kubectl apply` donnée par la console (« Ajouter un cluster ») ; ce chart
+# installe le même agent pour qui préfère Helm ou GitOps.
+
+image:
+  # Image publique de l'agent. <tag> embarque le scanner intégré (trivy) ;
+  # <tag>-slim ne l'embarque pas et suffit avec le Trivy Operator
+  # (collect.source operator), qui choisit cette variante.
+  repository: docker.io/thomassamson33/wardpod-agent
+  # Vide : appVersion du chart.
+  tag: ""
+  # Épinglage par digest (sha256:…), prioritaire sur le tag.
+  digest: ""
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# Cluster observé.
+cluster:
+  # Nom du cluster déclaré dans la console : minuscules, chiffres et tirets.
+  name: ""
+  # Environnement, pondéré par le score ; celui fixé dans la console
+  # l'emporte.
+  environment: ""
+
+agent:
+  # Adresse du service Wardpod, en https://.
+  serverURL: ""
+  # Secret existant contenant le jeton du cluster (donné par la console).
+  existingSecret: ""
+  existingSecretKey: token
+  # Jeton en clair, rendu dans un Secret géré par le chart. Préférer
+  # existingSecret.
+  token: ""
+  # Autorise http:// : le jeton circule alors en clair (essais seulement).
+  allowInsecure: false
+  # Port des sondes /healthz, /readyz et des métriques /metrics.
+  probePort: 8081
+  # Avec le Trivy Operator, 512Mi suffisent ; le scanner intégré a besoin
+  # de 2Gi pendant une analyse.
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 2Gi
+
+# Source des vulnérabilités : auto (le Trivy Operator s'il est installé,
+# sinon le scanner intégré, réévalué toutes les 5 minutes), operator ou
+# builtin.
+collect:
+  source: auto
+  # Gateways (namespace/nom) et classes de Gateway joignables du seul réseau
+  # privé : les workloads publiés uniquement par elles sont exposés au
+  # cluster, pas sur internet.
+  internalGateways: []
+  internalGatewayClasses: []
+  # Inventaire logiciel : transmet les composants des images en service,
+  # d'après leur SBOM. Avec l'opérateur, ajoute le droit de lire les
+  # SbomReport.
+  inventory: true
+
+# Scanner intégré (sources auto et builtin) : il tire les images des
+# registres ; prévoir l'accès réseau.
+scanner:
+  # Le serveur recherche les vulnérabilités : l'agent ne fait que les SBOM,
+  # sans base de vulnérabilités (environ 1,5 Gio de moins dans le cache).
+  # Avec le Trivy Operator, l'agent lit ses SbomReport au lieu des
+  # VulnerabilityReport. À activer seulement si
+  # la console le propose (« Ajouter un cluster ») ; exige
+  # collect.inventory.
+  serverMatch: false
+  # Identifiants des registres privés : Secret existant au format
+  # dockerconfigjson. L'agent ne lit jamais les Secrets du cluster.
+  registryAuth:
+    existingSecret: ""
+    existingSecretKey: .dockerconfigjson
+  # Cache de la base de vulnérabilités (environ 1,5 Gio) et des SBOM :
+  # emptyDir par défaut, retéléchargé à chaque redémarrage.
+  cache:
+    sizeLimit: 4Gi
+    persistence:
+      enabled: false
+      storageClass: ""
+      size: 5Gi
+      # PVC existant ; vide, le chart en crée un.
+      existingClaim: ""
+
+# Autres réglages, variables WP_* de l'agent. Les variables réglées par le
+# chart et les secrets y sont refusés.
+env: {}
+
+# Délai d'arrêt propre ; le pod dispose de 5 secondes de plus.
+shutdownTimeoutSeconds: 25
+
+log:
+  level: info
+  format: json
+
+# PodMonitor (Prometheus Operator) sur le port des sondes.
+metrics:
+  podMonitor:
+    enabled: false
+    interval: 1m
+    scrapeTimeout: 30s
+    labels: {}
+
+# NetworkPolicy d'entrée : seul le port des sondes est ouvert, aux sources
+# listées (vide : kubelet et Prometheus de partout).
+networkPolicy:
+  enabled: false
+  metricsFrom: []
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# Droits de lecture sur le cluster, sans aucun accès aux Secrets.
+rbac:
+  create: true
+
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Profil Pod Security « restricted ».
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]

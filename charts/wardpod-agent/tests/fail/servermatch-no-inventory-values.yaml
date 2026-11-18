@@ -1,0 +1,5 @@
+# erreur : scanner.serverMatch exige collect.inventory
+cluster: {name: edge-1}
+agent: {serverURL: "https://wardpod.example.org", existingSecret: jeton}
+collect: {inventory: false}
+scanner: {serverMatch: true}

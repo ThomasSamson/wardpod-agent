@@ -1,0 +1,4 @@
+# erreur : additional properties
+cluster: {name: edge-1}
+agent: {serverURL: "https://wardpod.example.org", existingSecret: jeton}
+mode: agent

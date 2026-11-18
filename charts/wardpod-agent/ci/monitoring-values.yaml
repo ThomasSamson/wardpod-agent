@@ -1,0 +1,17 @@
+# Jeton en clair (essais), supervision et NetworkPolicy.
+cluster:
+  name: edge-3
+agent:
+  serverURL: https://wardpod.example.org
+  token: jeton-factice-123456
+metrics:
+  podMonitor:
+    enabled: true
+networkPolicy:
+  enabled: true
+  metricsFrom:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
+env:
+  WP_COLLECT_SBOM_BATCH: "10"

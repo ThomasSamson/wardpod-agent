@@ -1,0 +1,21 @@
+{{- if .Values.metrics.podMonitor.enabled }}
+# Métriques de l'agent (état de la collecte), sur le port des sondes.
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: {{ include "psa.fullname" . }}-agent
+  labels:
+    {{- include "psa.labels" . | nindent 4 }}
+    {{- with .Values.metrics.podMonitor.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "psa.selectorLabels" . | nindent 6 }}
+  podMetricsEndpoints:
+    - port: probes
+      path: /metrics
+      interval: {{ .Values.metrics.podMonitor.interval }}
+      scrapeTimeout: {{ .Values.metrics.podMonitor.scrapeTimeout }}
+{{- end }}

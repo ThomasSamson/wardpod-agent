@@ -1,0 +1,3 @@
+# erreur : agent.serverURL en http://
+cluster: {name: edge-1}
+agent: {serverURL: "http://wardpod.example.org", existingSecret: jeton}

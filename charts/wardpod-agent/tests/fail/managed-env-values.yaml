@@ -1,0 +1,4 @@
+# erreur : env.WP_COLLECT_SOURCE : variable réglée par le chart
+cluster: {name: edge-1}
+agent: {serverURL: "https://wardpod.example.org", existingSecret: jeton}
+env: {WP_COLLECT_SOURCE: builtin}

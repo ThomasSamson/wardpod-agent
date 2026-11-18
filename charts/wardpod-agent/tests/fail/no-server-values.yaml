@@ -1,0 +1,3 @@
+# erreur : agent.serverURL est obligatoire
+cluster: {name: edge-1}
+agent: {existingSecret: jeton}

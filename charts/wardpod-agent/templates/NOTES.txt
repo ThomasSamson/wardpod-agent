@@ -1,0 +1,7 @@
+Agent Wardpod du cluster {{ .Values.cluster.name }} installé : il envoie ses snapshots à {{ .Values.agent.serverURL }}.
+
+Vérifier sa configuration :
+
+  kubectl --namespace {{ .Release.Namespace }} exec deploy/{{ include "psa.fullname" . }}-agent -- wardpod config -check agent
+
+Le cluster apparaît dans la console (page « Clusters ») au premier snapshot reçu.

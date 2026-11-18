@@ -1,0 +1,26 @@
+{{- include "psa.validate" . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "psa.fullname" . }}
+  labels:
+    {{- include "psa.labels" . | nindent 4 }}
+data:
+  # Configuration exclusivement par variables d'environnement.
+  WP_LOG_LEVEL: {{ .Values.log.level | quote }}
+  WP_LOG_FORMAT: {{ .Values.log.format | quote }}
+  WP_SHUTDOWN_TIMEOUT: {{ printf "%ds" (int .Values.shutdownTimeoutSeconds) | quote }}
+  WP_COLLECT_CLUSTER: {{ .Values.cluster.name | quote }}
+  WP_COLLECT_ENVIRONMENT: {{ .Values.cluster.environment | quote }}
+  WP_COLLECT_SOURCE: {{ .Values.collect.source | quote }}
+  WP_COLLECT_INTERNAL_GATEWAYS: {{ .Values.collect.internalGateways | toJson | quote }}
+  WP_COLLECT_INTERNAL_GATEWAY_CLASSES: {{ .Values.collect.internalGatewayClasses | toJson | quote }}
+  WP_COLLECT_INVENTORY: {{ .Values.collect.inventory | quote }}
+  WP_SCANNER_CACHE_DIR: /var/cache/wardpod
+  WP_SCANNER_SERVER_MATCH: {{ .Values.scanner.serverMatch | quote }}
+  WP_AGENT_SERVER_URL: {{ .Values.agent.serverURL | quote }}
+  WP_AGENT_ALLOW_INSECURE: {{ .Values.agent.allowInsecure | quote }}
+  WP_AGENT_LISTEN: {{ printf ":%d" (int .Values.agent.probePort) | quote }}
+  {{- range $k, $v := .Values.env }}
+  {{ $k }}: {{ $v | toString | quote }}
+  {{- end }}
