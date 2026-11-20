@@ -1,0 +1,65 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Mises à jour des dépendances de l'agent : fusion automatique quand la CI passe, sauf les versions majeures, relues à la main.",
+  "extends": ["config:recommended", "helpers:pinGitHubActionDigests", ":semanticCommitsDisabled"],
+  "timezone": "Europe/Paris",
+  "schedule": ["before 7am on monday"],
+  "labels": ["dépendances"],
+  "dependencyDashboardTitle": "Tableau de bord des dépendances (Renovate)",
+  "commitMessageAction": "Met à jour",
+  "commitMessageTopic": "{{depName}}",
+  "commitMessageExtra": "vers {{#if isPinDigest}}{{{newDigestShort}}}{{else}}{{#if newValue}}{{{newValue}}}{{else}}{{{newDigestShort}}}{{/if}}{{/if}}",
+  "prConcurrentLimit": 10,
+  "minimumReleaseAge": "3 days",
+  "internalChecksFilter": "strict",
+  "automerge": true,
+  "automergeType": "pr",
+  "platformAutomerge": false,
+  "postUpdateOptions": ["gomodTidy"],
+  "vulnerabilityAlerts": {
+    "labels": ["dépendances", "sécurité"],
+    "schedule": ["at any time"],
+    "automerge": true,
+    "minimumReleaseAge": null
+  },
+  "packageRules": [
+    {
+      "description": "Versions majeures : relues et fusionnées à la main.",
+      "matchUpdateTypes": ["major"],
+      "automerge": false,
+      "labels": ["dépendances", "majeure"]
+    },
+    {
+      "description": "Go : même version dans mise.toml, go.mod et les images du Dockerfile.",
+      "matchDepNames": ["go", "golang"],
+      "groupName": "Go"
+    },
+    {
+      "description": "Modules Go, hors versions majeures.",
+      "matchManagers": ["gomod"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "modules Go"
+    },
+    {
+      "description": "Actions GitHub (épinglées par SHA).",
+      "matchManagers": ["github-actions"],
+      "groupName": "actions GitHub"
+    },
+    {
+      "description": "Images de base et services de la CI (épinglés par digest).",
+      "matchManagers": ["dockerfile", "github-actions"],
+      "matchDatasources": ["docker"],
+      "groupName": "images Docker"
+    },
+    {
+      "description": "Le binaire trivy du Dockerfile est épinglé avec ses sommes de contrôle : mis à jour à la main.",
+      "matchDepNames": ["aquasecurity/trivy"],
+      "enabled": false
+    },
+    {
+      "description": "L'image de l'agent suit ses propres versions, publiées à part.",
+      "matchPackageNames": ["docker.io/thomassamson33/wardpod-agent"],
+      "enabled": false
+    }
+  ]
+}
