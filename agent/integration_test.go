@@ -224,6 +224,16 @@ func (d *captureDest) next(t *testing.T) *model.Snapshot {
 	}
 }
 
+// within attend un snapshot pendant d au plus ; faux si aucun n'arrive.
+func (d *captureDest) within(wait time.Duration) (*model.Snapshot, bool) {
+	select {
+	case s := <-d.ch:
+		return s, true
+	case <-time.After(wait):
+		return nil, false
+	}
+}
+
 func TestIntegrationMissingCRD(t *testing.T) {
 	_, rc := startEnv(t)
 	c, err := NewCollector(config.Collect{Cluster: "it", SyncTimeout: 10 * time.Second}, "test", rc, &OperatorSource{})

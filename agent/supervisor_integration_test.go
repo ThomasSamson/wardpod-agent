@@ -131,9 +131,15 @@ func TestIntegrationSupervisorBuiltinThenOperator(t *testing.T) {
 	}
 	done0.Status.Phase = corev1.PodSucceeded
 	mustCreate(kube.CoreV1().Pods(ns).UpdateStatus(ctx, done0, metav1.UpdateOptions{}))
+	// Un snapshot identique au précédent (qui avait le CronJob) n'est pas
+	// renvoyé : rien de reçu pendant quelques secondes le prouve aussi.
 	deadline0 := time.Now().Add(20 * time.Second)
 	for {
-		snap = dest.next(t)
+		next, ok := dest.within(3 * time.Second)
+		if !ok {
+			break
+		}
+		snap = next
 		var hasCron bool
 		for _, r := range snap.Reports {
 			hasCron = hasCron || r.WorkloadKind == "CronJob"

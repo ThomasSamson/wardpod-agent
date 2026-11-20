@@ -2,10 +2,14 @@ package agent
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"sync/atomic"
 	"time"
+
+	"github.com/ThomasSamson/wardpod-agent/model"
 )
 
 // Loop pousse les snapshots d'un collecteur vers une destination : à chaque
@@ -24,6 +28,21 @@ type Loop struct {
 
 	lastSuccess atomic.Int64 // UnixNano du dernier envoi réussi
 	lastAttempt atomic.Int64 // UnixNano de la dernière tentative, réussie ou non
+	// lastSent : empreinte du dernier snapshot accepté (hors CollectedAt),
+	// lue et écrite par la seule boucle.
+	lastSent [sha256.Size]byte
+}
+
+// fingerprint résume le contenu d'un snapshot, sans son heure de collecte.
+// Un échec d'encodage donne une empreinte nulle : le snapshot part.
+func fingerprint(snap *model.Snapshot) [sha256.Size]byte {
+	c := *snap
+	c.CollectedAt = time.Time{}
+	b, err := json.Marshal(&c)
+	if err != nil {
+		return [sha256.Size]byte{}
+	}
+	return sha256.Sum256(b)
 }
 
 // Run tourne jusqu'à l'annulation du contexte. Le collecteur doit être
@@ -138,6 +157,15 @@ func (l *Loop) push(ctx context.Context) error {
 		slog.Error("construction du snapshot", "err", err)
 		return err
 	}
+	// Un pod qui apparaît puis disparaît (CronJob chaque minute) redemande
+	// un envoi sans rien changer : un snapshot identique au dernier accepté
+	// n'est renvoyé qu'à l'intervalle, signal de vie du cluster.
+	sum := fingerprint(snap)
+	if sum != ([sha256.Size]byte{}) && sum == l.lastSent && time.Since(l.LastSuccess()) < l.Interval {
+		slog.Debug("snapshot inchangé : envoi reporté à l'intervalle")
+		l.pushSBOMs(ctx)
+		return nil
+	}
 	// Un envoi commencé n'est pas coupé net par l'arrêt : il dispose encore
 	// de ShutdownTimeout.
 	sendCtx, cancel := context.WithCancel(context.WithoutCancel(ctx))
@@ -153,6 +181,7 @@ func (l *Loop) push(ctx context.Context) error {
 		return err
 	}
 	l.lastSuccess.Store(time.Now().UnixNano())
+	l.lastSent = sum
 	l.Collector.SetWanted(reply.SBOMsWanted)
 	n := 0
 	for _, r := range snap.Reports {

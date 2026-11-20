@@ -662,3 +662,42 @@ func TestServerMatchNeedsInventory(t *testing.T) {
 		t.Fatalf("serverMatch sans inventaire : %v", err)
 	}
 }
+
+// Un snapshot identique au dernier accepté n'est renvoyé qu'à l'intervalle ;
+// un contenu différent part tout de suite.
+func TestPushSkipsUnchangedSnapshot(t *testing.T) {
+	dest := &flakyDest{sent: make(chan struct{}, 10)}
+	l := &Loop{Collector: emptyCollector(), Destination: dest, Interval: time.Hour, ShutdownTimeout: time.Second}
+	ctx := context.Background()
+	for range 3 {
+		if err := l.push(ctx); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if n := dest.calls.Load(); n != 1 {
+		t.Fatalf("snapshot inchangé : %d envois, 1 attendu", n)
+	}
+	l.lastSent[0] ^= 1 // contenu différent du dernier accepté
+	l.push(ctx)
+	if n := dest.calls.Load(); n != 2 {
+		t.Fatalf("snapshot changé : %d envois, 2 attendus", n)
+	}
+	l.Interval = time.Nanosecond // intervalle écoulé : signal de vie
+	l.push(ctx)
+	if n := dest.calls.Load(); n != 3 {
+		t.Fatalf("intervalle écoulé : %d envois, 3 attendus", n)
+	}
+	// Un échec n'enregistre pas d'empreinte : le même snapshot repart.
+	failing := &flakyDest{fail: 1, sent: make(chan struct{}, 10)}
+	l = &Loop{Collector: emptyCollector(), Destination: failing, Interval: time.Hour, ShutdownTimeout: time.Second}
+	l.push(ctx)
+	l.push(ctx)
+	if n := failing.calls.Load(); n != 2 {
+		t.Fatalf("après un échec : %d envois, 2 attendus", n)
+	}
+	// L'heure de collecte n'entre pas dans l'empreinte.
+	a, b := model.Snapshot{Cluster: "c", CollectedAt: time.Unix(1, 0)}, model.Snapshot{Cluster: "c", CollectedAt: time.Unix(2, 0)}
+	if fingerprint(&a) != fingerprint(&b) {
+		t.Fatal("empreinte dépendante de l'heure de collecte")
+	}
+}
