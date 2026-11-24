@@ -131,3 +131,15 @@ agent:
   httpTimeout: 1m0s
   # Adresse des sondes /healthz et /readyz.
   listen: :8081
+
+# Serveur MCP local (sous-commande mcp) : donne à un assistant IA (Claude,
+# Cursor…) l'accès à la console par un jeton d'API personnel.
+mcp:
+  # URL de la console, en https:// (http:// accepté sur la boucle locale).
+  url: ""
+  # Jeton d'API personnel, créé dans la console (Mon compte). Secret.
+  token: ""
+  # Autorise http:// hors de la boucle locale : le jeton circule en clair.
+  allowInsecure: false
+  # Délai maximal d'une requête à la console.
+  httpTimeout: 30s

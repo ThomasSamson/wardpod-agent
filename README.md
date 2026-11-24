@@ -85,6 +85,36 @@ wardpod agent -dump -context <contexte kubectl> -cluster test # snapshot sur la 
 
 Hors du cluster, l'agent exige un contexte explicite et ne prend jamais le contexte courant.
 
+## Assistant IA (MCP)
+
+La sous-commande `mcp` est un serveur [MCP](https://modelcontextprotocol.io) local, en stdio : elle donne à un assistant IA (Claude Desktop, Claude Code, Cursor, VS Code…) l'accès à votre console Wardpod, avec un jeton d'API personnel créé dans la console (Mon compte, plans Pro et Business). Elle tourne sur votre poste : vos données vont de la console à votre assistant, sans autre intermédiaire.
+
+```sh
+claude mcp add wardpod \
+  -e WP_MCP_URL=https://<votre-console> -e WP_MCP_TOKEN=wp_pat_… \
+  -- docker run -i --rm -e WP_MCP_URL -e WP_MCP_TOKEN docker.io/thomassamson33/wardpod-agent:<version> mcp
+```
+
+Pour Claude Desktop ou Cursor (`claude_desktop_config.json`, `.cursor/mcp.json`) :
+
+```json
+{
+  "mcpServers": {
+    "wardpod": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "-e", "WP_MCP_URL", "-e", "WP_MCP_TOKEN", "docker.io/thomassamson33/wardpod-agent:<version>", "mcp"],
+      "env": { "WP_MCP_URL": "https://<votre-console>", "WP_MCP_TOKEN": "wp_pat_…" }
+    }
+  }
+}
+```
+
+Avec le binaire (`make build`), la commande devient `wardpod mcp`. Réglages : `WP_MCP_URL`, `WP_MCP_TOKEN` (ou `WP_MCP_TOKEN_FILE`), `WP_MCP_HTTP_TIMEOUT` ; `wardpod config -check mcp` les vérifie.
+
+- **Lecture seule par défaut** : synthèse, vulnérabilités, détail d'un finding, risque, images et plan de correction, inventaire (« où tourne ce paquet ? »), exceptions.
+- **Exceptions** : avec un jeton créé avec l'option « exceptions » (compte administrateur), l'assistant peut aussi proposer une exception, retirer sa proposition et révoquer une exception. Une exception proposée reste **sans effet** tant qu'un humain ne l'a pas validée dans la console : un texte piégé dans une image ou une annotation ne peut pas, à lui seul, masquer une vulnérabilité.
+- Les textes venus des clusters sont rendus à l'assistant comme des données, jamais comme des instructions. Le jeton ne quitte pas l'en-tête `Authorization` et n'apparaît dans aucun journal.
+
 ## Développement
 
 ```sh

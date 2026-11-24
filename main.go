@@ -300,7 +300,7 @@ var versionCommand = command{
 var configCommand = command{
 	summary: "affiche la configuration effective, secrets masqués",
 	setup: func(fs *flag.FlagSet, _ *config.Config) *action {
-		check := fs.String("check", "", "valide aussi la configuration pour un usage : agent")
+		check := fs.String("check", "", "valide aussi la configuration pour un usage : agent ou mcp")
 		return &action{dataOnStdout: always, run: func(_ context.Context, env *runEnv) error {
 			validate := env.cfg.ValidateCommon
 			switch *check {
@@ -309,8 +309,10 @@ var configCommand = command{
 				validate = func() error {
 					return errors.Join(env.cfg.ValidateCommon(), agent.ValidateSources(env.cfg.Collect, env.cfg.Scanner), agent.ValidateHTTP(env.cfg.Agent))
 				}
+			case "mcp":
+				validate = func() error { return errors.Join(env.cfg.ValidateCommon(), validateMCP(env.cfg.MCP)) }
 			default:
-				return fmt.Errorf("%w : -check vaut agent (%q)", errUsage, *check)
+				return fmt.Errorf("%w : -check vaut agent ou mcp (%q)", errUsage, *check)
 			}
 			out, err := env.cfg.Redacted()
 			if err != nil {

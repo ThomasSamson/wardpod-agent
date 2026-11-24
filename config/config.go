@@ -21,6 +21,7 @@ type Config struct {
 	Collect         Collect       `yaml:"collect"`
 	Scanner         Scanner       `yaml:"scanner"`
 	Agent           Agent         `yaml:"agent"`
+	MCP             MCP           `yaml:"mcp"`
 }
 
 // DefaultShutdownTimeout : délai d'arrêt propre par défaut.
@@ -28,7 +29,7 @@ const DefaultShutdownTimeout = 25 * time.Second
 
 // Default renvoie la configuration par défaut de l'agent.
 func Default() Config {
-	return Config{Log: DefaultLog(), ShutdownTimeout: DefaultShutdownTimeout, Collect: DefaultCollect(), Scanner: DefaultScanner(), Agent: DefaultAgent()}
+	return Config{Log: DefaultLog(), ShutdownTimeout: DefaultShutdownTimeout, Collect: DefaultCollect(), Scanner: DefaultScanner(), Agent: DefaultAgent(), MCP: DefaultMCP()}
 }
 
 // DefaultLog : journal en JSON, niveau info.
@@ -88,6 +89,9 @@ func DefaultAgent() Agent {
 		Listen:      ":8081",
 	}
 }
+
+// DefaultMCP : valeurs par défaut de la section mcp.
+func DefaultMCP() MCP { return MCP{HTTPTimeout: 30 * time.Second} }
 
 // Load lit la configuration : défauts, fichier WP_CONFIG, puis variables
 // WP_*. Elle renvoie aussi les variables WP_* inconnues.
@@ -220,6 +224,15 @@ type Agent struct {
 	HTTPTimeout   time.Duration `yaml:"httpTimeout"`
 	// Listen sert les sondes /healthz et /readyz.
 	Listen string `yaml:"listen"`
+}
+
+// MCP règle la sous-commande mcp : serveur MCP local qui donne à un
+// assistant IA l'accès à la console par un jeton d'API personnel.
+type MCP struct {
+	URL           string        `yaml:"url"`
+	Token         string        `yaml:"token" secret:"true"`
+	AllowInsecure bool          `yaml:"allowInsecure"`
+	HTTPTimeout   time.Duration `yaml:"httpTimeout"`
 }
 
 func CheckURL(raw string, allowInsecure bool) error {
